@@ -8,17 +8,17 @@ mainPage = requests.get(pageUrl, headers={'User-agent': 'Mozilla/5.0'})
 mainPageContent = BeautifulSoup(mainPage.content, "html.parser")
 links = []
 
-
 fileName = "film" + datetime.today().strftime("%Y-%m") + ".xlsx"
 workbook = xlsxwriter.Workbook(fileName)
 worksheet = workbook.add_worksheet()
 rowTitle = 0
 colTitle = 0
+bold = workbook.add_format({'bold': True})
 
-titles = ['Film Adı', 'Vizyon Tarihi', 'TR Dağıtım', 'Şirket', 'Film Türü', 'Konusu', 'Ülke', 'Yönetmen','CAST']
+titles = ['Film Adı', 'Vizyon Tarihi', 'TR Dağıtım', 'Şirket', 'Film Türü', 'Konusu', 'Ülke', 'Yönetmen', 'Oyuncular']
 
 for title in titles:
-    worksheet.write(rowTitle, colTitle, title)
+    worksheet.write(rowTitle, colTitle, title, bold)
     colTitle += 1
 
 for item in mainPageContent.findAll('a', {'class': 'film'}):
@@ -50,19 +50,39 @@ for pair in links:
 
     cast = pageContent.find('div', {'id': 'movieCast'}).get_text().split("\n")
 
-    mCast = list(filter(lambda x: x != "", cast))[1:]
+    mCast = list(filter(lambda x: x != "", cast))
 
-    directors=[]
+    yonetmenler = []
+    oyuncular = []
 
-    directorsFound = False
-    actorsFound = False
+    actorIndex = 0
 
-    for cast in mCast:
-        while " " not in cast:
-            directors.append(cast)
-            mCast.remove(cast)
+    try:
+        directorIndex = mCast.index('Yönetmen')
+    except ValueError:
+        directorIndex = -1
+    try:
+        actorIndex = mCast.index('Oyuncular')
+    except ValueError:
+        actorIndex = -1
+    try:
+        screenwriterIndex = mCast.index('Senaryo')
+    except ValueError:
+        screenwriterIndex = -1
 
-    allnfo = [name, vizyonTarihi, trDagitim, sirket, tur, konu, ulke, mCast]
+    if (directorIndex != -1):
+        if (actorIndex != -1):
+            yonetmenler = mCast[directorIndex + 1:actorIndex]
+            if (screenwriterIndex != -1):
+                oyuncular = mCast[actorIndex + 1:screenwriterIndex]
+            else:
+                oyuncular = mCast[actorIndex + 1:]
+        elif (screenwriterIndex != -1):
+            yonetmenler = mCast[directorIndex + 1:screenwriterIndex]
+        else:
+            yonetmenler = mCast[directorIndex + 1:]
+
+    allnfo = [name, vizyonTarihi, trDagitim, sirket, tur, konu, ulke, str(yonetmenler)[1:-1], str(oyuncular)[1:-1]]
 
     for info in allnfo:
         worksheet.write(rowFilm, colFilm, info)
