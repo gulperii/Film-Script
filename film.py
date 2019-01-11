@@ -1,7 +1,14 @@
-from bs4 import BeautifulSoup
+import smtplib
+from datetime import datetime
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.utils import formatdate
+from email.mime.text import MIMEText
+
 import requests
 import xlsxwriter
-from datetime import datetime
+from bs4 import BeautifulSoup
 
 pageUrl = "https://boxofficeturkiye.com/vizyon/"
 mainPage = requests.get(pageUrl, headers={'User-agent': 'Mozilla/5.0'})
@@ -90,3 +97,25 @@ for pair in links:
     rowFilm += 1
 
 workbook.close()
+
+username = 'hobot@yga.org.tr'
+password = '%663KienOVTQ6S$'
+send_from = 'hobot@yga.org.tr'
+send_to = 'hobot@yga.org.tr'
+msg = MIMEMultipart()
+msg['From'] = send_from
+msg['To'] = send_to
+msg['Date'] = formatdate(localtime = True)
+msg['Subject'] = "Excel attachment"
+msg.attach(MIMEText("Ayın vizyon filmleri"))
+part = MIMEBase('application', "octet-stream")
+part.set_payload(open(fileName, "rb").read())
+encoders.encode_base64(part)
+part.add_header('Content-Disposition', 'attachment; filename="'+fileName+'"')
+msg.attach(part)
+smtp = smtplib.SMTP('smtp.office365.com',587)
+smtp.ehlo()
+smtp.starttls()
+smtp.login(username,password)
+smtp.sendmail(send_from, send_to, msg.as_string())
+smtp.quit()
