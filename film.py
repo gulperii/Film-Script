@@ -1,3 +1,4 @@
+import os
 import smtplib
 from datetime import datetime
 from email import encoders
@@ -9,6 +10,7 @@ from email.mime.text import MIMEText
 import requests
 import xlsxwriter
 from bs4 import BeautifulSoup
+
 
 pageUrl = "https://boxofficeturkiye.com/vizyon/"
 mainPage = requests.get(pageUrl, headers={'User-agent': 'Mozilla/5.0'})
@@ -40,56 +42,71 @@ for pair in links:
     (name, link) = pair
     page = requests.get(link, headers={'User-agent': 'Mozilla/5.0'})
     pageContent = BeautifulSoup(page.content, "html.parser")
-    items = pageContent.findAll('td', {'class': 'movie-summary-value'})
-
-    vizyonTarihi = items[0].get_text().replace("\n", " ")
-    trDagitim = items[1].get_text()
-    sirket = items[2].get_text()
-    tur = items[3].get_text().replace(" ", "").replace('\r\n', " ")
 
     try:
-        konu = pageContent.findAll('span', {'class': 'spot'}, limit=1)[0].get_text().replace("\n", " ").split("Devamı")[
+        items = pageContent.findAll('td', {'class': 'movie-summary-value'})
+    except IndexError:
+        items = "null"
+    try:
+        releaseDate = items[0].get_text().replace("\n", " ")
+    except IndexError:
+        releaseDate = "null"
+    try:
+        trCompany = items[1].get_text()
+    except IndexError:
+        trCompany = "null"
+    try:
+        company = items[2].get_text()
+    except IndexError:
+        company = "null"
+    try:
+        genre = items[3].get_text().replace(" ", "").replace('\r\n', " ")
+    except IndexError:
+        genre = "null"
+    try:
+        topic = \
+        pageContent.findAll('span', {'class': 'spot'}, limit=1)[0].get_text().replace("\n", " ").split("Devamı")[
             0]
     except IndexError:
-        konu = 'null'
+        topic = 'null'
 
-    ulke = pageContent.find('img', {'class': 'cercevesiyah'}, width=25).get('title')
+    country = pageContent.find('img', {'class': 'cercevesiyah'}, width=25).get('title')
 
     cast = pageContent.find('div', {'id': 'movieCast'}).get_text().split("\n")
 
-    mCast = list(filter(lambda x: x != "", cast))
+    modifiedCast = list(filter(lambda x: x != "" and x != "'", cast))
 
-    yonetmenler = []
-    oyuncular = []
+    directors = []
+    actors = []
 
     actorIndex = 0
 
     try:
-        directorIndex = mCast.index('Yönetmen')
+        directorIndex = modifiedCast.index('Yönetmen')
     except ValueError:
         directorIndex = -1
     try:
-        actorIndex = mCast.index('Oyuncular')
+        actorIndex = modifiedCast.index('Oyuncular')
     except ValueError:
         actorIndex = -1
     try:
-        screenwriterIndex = mCast.index('Senaryo')
+        screenwriterIndex = modifiedCast.index('Senaryo')
     except ValueError:
         screenwriterIndex = -1
 
     if (directorIndex != -1):
         if (actorIndex != -1):
-            yonetmenler = mCast[directorIndex + 1:actorIndex]
+            directors = modifiedCast[directorIndex + 1:actorIndex]
             if (screenwriterIndex != -1):
-                oyuncular = mCast[actorIndex + 1:screenwriterIndex]
+                actors = modifiedCast[actorIndex + 1:screenwriterIndex]
             else:
-                oyuncular = mCast[actorIndex + 1:]
+                actors = modifiedCast[actorIndex + 1:]
         elif (screenwriterIndex != -1):
-            yonetmenler = mCast[directorIndex + 1:screenwriterIndex]
+            directors = modifiedCast[directorIndex + 1:screenwriterIndex]
         else:
-            yonetmenler = mCast[directorIndex + 1:]
+            directors = modifiedCast[directorIndex + 1:]
 
-    allnfo = [name, vizyonTarihi, trDagitim, sirket, tur, konu, ulke, str(yonetmenler)[1:-1], str(oyuncular)[1:-1]]
+    allnfo = [name, releaseDate, trCompany, company, genre, topic, country, str(directors)[1:-1], str(actors)[1:-1]]
 
     for info in allnfo:
         worksheet.write(rowFilm, colFilm, info)
@@ -105,17 +122,32 @@ send_to = 'hobot@yga.org.tr'
 msg = MIMEMultipart()
 msg['From'] = send_from
 msg['To'] = send_to
-msg['Date'] = formatdate(localtime = True)
+msg['Date'] = formatdate(localtime=True)
 msg['Subject'] = "Excel attachment"
 msg.attach(MIMEText("Ayın vizyon filmleri"))
 part = MIMEBase('application', "octet-stream")
 part.set_payload(open(fileName, "rb").read())
 encoders.encode_base64(part)
-part.add_header('Content-Disposition', 'attachment; filename="'+fileName+'"')
+part.add_header('Content-Disposition', 'attachment; filename="' + fileName + '"')
 msg.attach(part)
-smtp = smtplib.SMTP('smtp.office365.com',587)
+smtp = smtplib.SMTP('smtp.office365.com', 587)
 smtp.ehlo()
 smtp.starttls()
-smtp.login(username,password)
+smtp.login(username, password)
 smtp.sendmail(send_from, send_to, msg.as_string())
 smtp.quit()
+
+from flask import Flask
+
+app = Flask(__name__)
+
+
+@app.route("/")
+def hello():
+    return "Hello World!"
+
+
+if __name__ == '__main__':
+    # Bind to PORT if defined, otherwise default to 5000.
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
